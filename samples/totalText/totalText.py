@@ -37,7 +37,7 @@ COCO_WEIGHTS_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 
-# python totalText.py train --dataset=C:\Users\tunis\PycharmProjects\Mask_RCNN\samples\total-text\data --weights=coco
+# python totalText.py train --dataset=C:\Users\tunis\PycharmProjects\Mask_RCNN\samples\totalText\data --weights=coco
 
 class TotalTextConfig(Config):
     # Give the configuration a recognizable name
@@ -46,6 +46,16 @@ class TotalTextConfig(Config):
     NUM_CLASSES = 1 + 1  # Background + totalText
     # Number of training steps per epoch
     STEPS_PER_EPOCH = 100
+
+
+def get_int_list(mask_list, max_val):
+    mask_list = list(map(int, (mask_list.split(","))))
+
+    for i, value in enumerate(mask_list):
+        if value > max_val:
+            mask_list[i] = max_val
+
+    return mask_list
 
 
 class TotalTextDataset(utils.Dataset):
@@ -61,19 +71,20 @@ class TotalTextDataset(utils.Dataset):
         assert subset in ["train", "val"]
         dataset_dir = os.path.join(dataset_dir, subset)
         pattern = re.compile("\\[\\{\"x\":\\[([0-9,]*)\\],\"y\":\\[([0-9,]*)\\]\\}\\]")
-        polygons = []
 
         for filename in os.listdir(dataset_dir):
             if filename.endswith(".txt"):
-                for i, line in enumerate(open(dataset_dir + '/' + filename)):
-                    for match in re.finditer(pattern, line):
-                        tuple = (match.group(1).split(","), match.group(2).split(","))
-                        polygons.append(tuple)
+                polygons = []
 
                 # load_mask() needs the image size to convert polygons to masks.
-                image_path = os.path.join(dataset_dir + '/' + filename[3:-8] + '.jpg')
+                image_path = os.path.join(dataset_dir + '\\' + filename[3:-8] + '.jpg')
                 image = skimage.io.imread(image_path)
                 height, width = image.shape[:2]
+
+                for i, line in enumerate(open(dataset_dir + '\\' + filename)):
+                    for match in re.finditer(pattern, line):
+                        mask_tuple = (get_int_list(match.group(1), width), get_int_list(match.group(2), height))
+                        polygons.append(mask_tuple)
 
                 self.add_image(
                     "totalText",
@@ -100,7 +111,7 @@ class TotalTextDataset(utils.Dataset):
         mask = np.zeros([info["height"], info["width"], len(info["polygons"])], dtype=np.uint8)
         for i, p in enumerate(info["polygons"]):
             # Get indexes of pixels inside the polygon and set them to 1
-            rr, cc = skimage.draw.polygon(list(map(int, p[1])), list(map(int, p[0])))
+            rr, cc = skimage.draw.polygon(p[1], p[0])
             mask[rr, cc, i] = 1
 
         # Return mask, and array of class IDs of each instance. Since we have
